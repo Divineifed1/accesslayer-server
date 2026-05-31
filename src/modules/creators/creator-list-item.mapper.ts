@@ -17,6 +17,44 @@ export type CreatorListItem = {
    updatedAt: string;
 };
 
+type ExpectedFieldType = 'string' | 'boolean' | 'number' | 'Date';
+
+// Runtime type expectations for fields projected by CREATOR_LIST_DEFAULT_SELECT.
+// A mismatch here signals a DB migration changed a column type without updating the mapping.
+const CREATOR_LIST_FIELD_EXPECTED_TYPES: Record<string, ExpectedFieldType> = {
+   id: 'string',
+   handle: 'string',
+   displayName: 'string',
+   avatarUrl: 'string',
+   isVerified: 'boolean',
+   createdAt: 'Date',
+   updatedAt: 'Date',
+};
+
+function logIfFieldTypeMismatch(
+   creator: CreatorProfile,
+   fieldName: keyof typeof CREATOR_LIST_FIELD_EXPECTED_TYPES
+): void {
+   const value = (creator as Record<string, unknown>)[fieldName];
+
+   if (value === null || value === undefined) return;
+
+   const expectedType = CREATOR_LIST_FIELD_EXPECTED_TYPES[fieldName];
+   const typeMatches =
+      expectedType === 'Date' ? value instanceof Date : typeof value === expectedType;
+
+   if (!typeMatches) {
+      logger.error({
+         msg: 'Creator list field type mismatch',
+         fieldName,
+         expectedType,
+         receivedType: value instanceof Date ? 'Date' : typeof value,
+         creatorId: creator.id,
+         requestId: requestContextStorage.getStore()?.requestId ?? null,
+      });
+   }
+}
+
 function warnIfUnexpectedNullCreatorField(
    creator: CreatorProfile,
    fieldName: 'displayName'
@@ -43,6 +81,14 @@ export const mapCreatorListItem = (
    creator: CreatorProfile
 ): CreatorListItem => {
    warnIfUnexpectedNullCreatorField(creator, 'displayName');
+
+   logIfFieldTypeMismatch(creator, 'id');
+   logIfFieldTypeMismatch(creator, 'handle');
+   logIfFieldTypeMismatch(creator, 'displayName');
+   logIfFieldTypeMismatch(creator, 'avatarUrl');
+   logIfFieldTypeMismatch(creator, 'isVerified');
+   logIfFieldTypeMismatch(creator, 'createdAt');
+   logIfFieldTypeMismatch(creator, 'updatedAt');
 
    return {
       id: creator.id,
